@@ -6,7 +6,7 @@ namespace API.Models;
 [Table("tb_m_employees")]
 public class Employee : BaseEntity
 {
-    [Column("nik", TypeName = "nchar(16)")]
+    [Column("nik", TypeName = "nchar(6)")]
     public string Nik { get; set; }
 
     [Column("first_name", TypeName = "nvarchar(100)")]
