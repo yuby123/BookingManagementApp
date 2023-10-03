@@ -1,11 +1,10 @@
 ﻿using API.Models;
-using API.Utillities.Enums;
+using API.Utilities.Enums;
 
 namespace API.DTOs.Employees
 {
     public class CreatedEmployeeDto
     {
-        public string Nik { get; set; }
         public string FirstName { get; set; }
         public string LastName { get; set; }
         public DateTime BirthDate { get; set; }
@@ -20,7 +19,7 @@ namespace API.DTOs.Employees
         {
             return new Employee
             {
-                Nik = dto.Nik,
+                Guid = new Guid(),
                 FirstName = dto.FirstName,
                 LastName = dto.LastName,
                 BirthDate = dto.BirthDate,

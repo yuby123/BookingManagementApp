@@ -1,5 +1,5 @@
 ﻿using API.Models;
-using API.Utillities.Enums;
+using API.Utilities.Enums;
 
 namespace API.DTOs.Bookings;
 public class BookingDto

@@ -1,5 +1,5 @@
 ﻿using API.Models;
-using API.Utillities.Enums;
+using API.Utilities.Enums;
 
 namespace API.DTOs.Employees
 {
@@ -47,7 +47,8 @@ namespace API.DTOs.Employees
                 Gender = dto.Gender,
                 HiringDate = dto.HiringDate,
                 Email = dto.Email,
-                PhoneNumber = dto.PhoneNumber
+                PhoneNumber = dto.PhoneNumber,
+                ModifiedDate = DateTime.Now
             };
         }
     }

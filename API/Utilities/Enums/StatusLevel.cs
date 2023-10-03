@@ -1,4 +1,4 @@
-﻿namespace API.Utillities.Enums
+﻿namespace API.Utilities.Enums
 {
     // di panggil dalam Model Booking
     public enum StatusLevel

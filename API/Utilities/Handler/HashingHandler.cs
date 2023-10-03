@@ -1,6 +1,6 @@
 ﻿using BCrypt.Net;
 
-namespace API.Handler;
+namespace API.Utilities.Handler;
 public class HashingHandler
 {
 
