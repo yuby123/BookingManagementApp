@@ -1,5 +1,6 @@
 ﻿using API.Contracts;
 using API.DTOs.Accounts;
+using API.Handler;
 using API.Models;
 using API.Repositories;
 using Microsoft.AspNetCore.Mvc;
@@ -43,36 +44,55 @@ public class AccountController : ControllerBase
     }
 
     [HttpPost]
-    public IActionResult Create(CreateAccountDto accountDto) //Data Education baru dibuat dengan menggunakan CreateEducationDto
+    public IActionResult Create(CreateAccountDto accountDto)
     {
+        // Meng-hash kata sandi sebelum menyimpannya ke database.
+        string hashedPassword = HashingHandler.HashPassword(accountDto.Password);
+
+        // Mengganti kata sandi asli dengan yang di-hash sebelum menyimpannya ke DTO.
+        accountDto.Password = hashedPassword;
+
+        // Memanggil metode Create dari _accountRepository dengan parameter DTO yang sudah di-hash.
         var result = _accountRepository.Create(accountDto);
-        if (result is null) //jika pembuatan gagal, maka akan mengembalikan respons "BadRequest".
+
+        // Memeriksa apakah penciptaan data berhasil atau gagal.
+        if (result is null)
         {
             return BadRequest("Failed to create data");
         }
 
-        return Ok((AccountDto)result); //Respons "Ok" akan mengembalikan data Education dalam format explicit operator
+        // Mengembalikan data yang berhasil dibuat dalam respons OK.
+        return Ok((AccountDto)result);
     }
 
-    [HttpPut]
+    // HTTP PUT endpoint untuk memperbarui data Account.
+    [HttpPut] //menangani request update ke endpoint /Account
+              //parameter berupa objek menggunakan format DTO explicit agar crete data disesuaikan dengan format DTO
     public IActionResult Update(AccountDto accountDto)
     {
-        var entity = _accountRepository.GetByGuid(accountDto.Guid); // Data Education yang akan diperbarui diambil menggunakan method GetById.
-        if (entity is null) //Jika data tidak ditemukan, maka akan mengembalikan respons "NotFound".
+        //get data by guid dan menggunakan format DTO 
+        var entity = _accountRepository.GetByGuid(accountDto.Guid);
+        if (entity is null) //cek apakah data berdasarkan guid tersedia 
         {
+            //return Not Found jika data tidak ditemukan
             return NotFound("Id Not Found");
         }
-
-        Account toUpdate = accountDto; //Jika data ditemukan, objek roleDto akan diubah menjadi objek Education dengan beberapa perubahan, kemudian dipasskan ke repository untuk pembaruan.
+        //convert data DTO dari inputan user menjadi objek Account
+        Account toUpdate = accountDto;
+        //menyimpan createdate yg lama 
         toUpdate.CreatedDate = entity.CreatedDate;
+        toUpdate.Password = HashingHandler.HashPassword(accountDto.Password);
 
+        //update Account dalam repository
         var result = _accountRepository.Update(toUpdate);
-        if (!result) //jika pembuatan gagal, maka akan mengembalikan respons "BadRequest".
+        if (!result) //cek apakah update data gagal
+
         {
+            // return pesan BadRequest jika gagal update data
             return BadRequest("Failed to update data");
         }
-
-        return Ok("Data Updated"); //Jika pembaruan berhasil, akan mengembalikan respons "Ok
+        // return HTTP OK dengan kode status 200 dan return "data updated" untuk sukses update.
+        return Ok("Data Updated");
 
     }
 
