@@ -8,10 +8,10 @@ namespace API.Models;
 public class Booking : BaseEntity
 {
     [Column("start_date")]
-    public DateTime StartdDate { get; set; }
+    public DateTime StartDate { get; set; }
 
     [Column("end_date")]
-    public DateTime EnddDate { get; set; }
+    public DateTime EndDate { get; set; }
 
     [Column("status")]
     public StatusLevel Status { get; set; }

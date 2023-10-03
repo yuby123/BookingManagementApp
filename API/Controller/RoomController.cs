@@ -1,92 +1,98 @@
 ﻿
-using global::API.Contracts;
-using global::API.Models;
+using API.DTOs.Rooms;
+using API.Contracts;
+using API.Models;
 using Microsoft.AspNetCore.Mvc;
-using System;
-using System.Linq;
 
-namespace API.Controllers
+
+namespace API.Controllers;
+[ApiController]
+[Route("api/[controller]")]
+public class RoomController : ControllerBase
 {
-    [ApiController]
-    [Route("api/[controller]")]
-    public class RoomController : ControllerBase
+    private readonly IRoomRepository _roomRepository;
+    //Constructor ini menerima sebuah instance dari IRoomRepository melalui dependency injection dan menyimpannya di dalam field _roomRepository.
+    public RoomController(IRoomRepository roomRepository)
     {
-        private readonly IRoomRepository _roomRepository;
+        _roomRepository = roomRepository;
+    }
 
-        public RoomController(IRoomRepository roomRepository)
+    [HttpGet]
+    public IActionResult GetAll()
+    {
+        var result = _roomRepository.GetAll();//Data Room diambil dari repositori
+        if (!result.Any()) //Jika tidak ada data yang ditemukan, maka akan mengembalikan respons "NotFound".
         {
-            _roomRepository = roomRepository;
+            return NotFound("Data Not Found");
         }
 
-        [HttpGet]
-        public IActionResult GetAll()
-        {
-            var result = _roomRepository.GetAll();
-            if (!result.Any())
-            {
-                return NotFound("Data Not Found");
-            }
+        var data = result.Select(x => (RoomDto)x); //Data Room diubah menjadi DTO (Data Transfer Object) dengan expicit operator
+        return Ok(data);
 
-            return Ok(result);
+    }
+
+    [HttpGet("{guid}")] //digunakan untuk mendapatkan data Room berdasarkan GUID yang diberikan sebagai parameter.
+    public IActionResult GetByGuid(Guid guid)//Method ini digunakan untuk mendapatkan data Room berdasarkan GUID.
+    {
+        var result = _roomRepository.GetByGuid(guid); //Data Room diambil dari repositori menggunakan GUID yang diberikan.
+        if (result is null) //Jika data tidak ditemukan, maka akan mengembalikan respons "NotFound".
+        {
+            return NotFound("Id Not Found"); 
+        }
+        return Ok((RoomDto)result);//Respons "Ok" akan mengembalikan data Room dalam format explicit operator.
+
+    }
+
+    [HttpPost]
+    public IActionResult Create(CreateRoomDto roomDto) //Data Room baru dibuat dengan menggunakan CreateRoomDto
+    {
+        var result = _roomRepository.Create(roomDto);
+        if (result is null)//jika pembuatan gagal, maka akan mengembalikan respons "BadRequest".
+        {
+            return BadRequest("Failed to create data");
         }
 
-        [HttpGet("{guid}")]
-        public IActionResult GetByGuid(Guid guid)
+        return Ok((RoomDto)result); //Respons "Ok" akan mengembalikan data Room dalam format explicit operator
+    }
+
+    [HttpPut]
+    public IActionResult Update(RoomDto roomDto)
+    {
+        var entity = _roomRepository.GetByGuid(roomDto.Guid); // Data Room yang akan diperbarui diambil menggunakan method GetById.
+        if (entity is null)//Jika data tidak ditemukan, maka akan mengembalikan respons "NotFound".
         {
-            var result = _roomRepository.GetByGuid(guid);
-            if (result is null)
-            {
-                return NotFound("Id Not Found");
-            }
-            return Ok(result);
+            return NotFound("Id Not Found");
         }
 
-        [HttpPost]
-        public IActionResult Create(Room room)
-        {
-            var result = _roomRepository.Create(room);
-            if (result is null)
-            {
-                return BadRequest("Failed to create data");
-            }
+        Room toUpdate = roomDto; //Jika data ditemukan, objek roomDto akan diubah menjadi objek Room dengan beberapa perubahan, kemudian dipasskan ke repository untuk pembaruan.
+        toUpdate.CreatedDate = entity.CreatedDate;
 
-            return Ok(result);
+        var result = _roomRepository.Update(toUpdate);
+        if (!result) //jika pembuatan gagal, maka akan mengembalikan respons "BadRequest".
+        {
+            return BadRequest("Failed to update data");
         }
 
-        [HttpPut("{guid}")]
-        public IActionResult Update(Guid guid, Room room)
+        return Ok("Data Updated"); //Jika pembaruan berhasil, akan mengembalikan respons "Ok
+    }
+
+
+
+    [HttpDelete("{guid}")] //digunakan untuk menghapus data Room berdasarkan GUID.
+    public IActionResult Delete(Guid guid)
+    {
+        var entity = _roomRepository.GetByGuid(guid);// Data room yang akan Delet diambil menggunakan method GetById.
+        if (entity is null) //Jika data tidak ditemukan, maka akan mengembalikan respons "NotFound".
         {
-            var existingRoom = _roomRepository.GetByGuid(guid);
-            if (existingRoom == null)
-            {
-                return NotFound("Room not found");
-            }
-
-            var result = _roomRepository.Update(room);
-            if (!result)
-            {
-                return BadRequest("Failed to update data");
-            }
-
-            return Ok(result);
+            return NotFound("Id Not Found");
         }
 
-        [HttpDelete("{guid}")]
-        public IActionResult Delete(Guid guid)
+        var result = _roomRepository.Delete(entity);
+        if (!result) //jika Delet gagal, maka akan mengembalikan respons "BadRequest"..
         {
-            var existingRoom = _roomRepository.GetByGuid(guid);
-            if (existingRoom == null)
-            {
-                return NotFound("Room not found");
-            }
-
-            var result = _roomRepository.Delete(existingRoom);
-            if (!result)
-            {
-                return BadRequest("Failed to delete data");
-            }
-
-            return Ok(result);
+            return BadRequest("Failed to delete data");
         }
+
+        return Ok("Data Deleted"); //Jika Delet berhasil, akan mengembalikan respons "Ok"
     }
 }

@@ -1,5 +1,6 @@
 ﻿namespace API.Utillities.Enums
 {
+    // di panggil dalam Model Booking
     public enum StatusLevel
     {
         Requested,

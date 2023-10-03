@@ -3,7 +3,6 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace API.Models;
 
-
 [Table("tb_m_employees")]
 public class Employee : BaseEntity
 {
@@ -36,6 +35,4 @@ public class Employee : BaseEntity
     public Education? Education { get; set; }
     public Account? Account { get; set; }
     public ICollection<Booking>? Bookings { get; set; }
-
-
 }
