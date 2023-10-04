@@ -1,97 +1,176 @@
 ﻿using API.Contracts;
-using API.DTOs.Universities;
+namespace API.DTOs.Universities;
 using API.Models;
-using API.Repositories;
+using API.Utilities.Handler;
 using Microsoft.AspNetCore.Mvc;
-
-namespace API.Controllers;
+using System.Net;
 
 [ApiController]
 [Route("api/[controller]")]
 public class UniversityController : ControllerBase
 {
+    // Deklarasi variabel untuk repository university
     private readonly IUniversityRepository _universityRepository;
-    //Constructor ini menerima sebuah instance dari IUniversityRepository melalui dependency injection dan menyimpannya di dalam field _universityRepository.
+
+    // Konstruktor dengan parameter dependency injection untuk repository university
     public UniversityController(IUniversityRepository universityRepository)
     {
         _universityRepository = universityRepository;
     }
 
+
+    // Metode untuk mengambil semua data university
     [HttpGet]
     public IActionResult GetAll()
     {
-
-        var result = _universityRepository.GetAll(); //Data universitas diambil dari repositori
-        if (!result.Any()) //Jika tidak ada data yang ditemukan, maka akan mengembalikan respons "NotFound".
+        // Mengambil semua university dari repository
+        var result = _universityRepository.GetAll();
+        // Memeriksa jika tidak ada data university
+        if (!result.Any())
         {
-            return NotFound("Data Not Found");
+            // Mengembalikan respon error dengan kode 404 jika tidak ada data
+            return NotFound(new ResponseErrorHandler
+            {
+                Code = StatusCodes.Status404NotFound,
+                Status = HttpStatusCode.NotFound.ToString(),
+                Message = "Data Not Found"
+            });
         }
-
-        var data = result.Select(x => (UniversityDto)x); //Data universitas diubah menjadi DTO (Data Transfer Object) dengan expicit operator
-
-        return Ok(data); //Respons "Ok" akan mengembalikan data universitas dalam format JSON.
+        // Mengkonversi hasil ke DTO
+        var data = result.Select(x => (UniversityDto)x);
+        // Mengembalikan data university dalam format DTO dengan kode 200
+        return Ok(new ResponseOKHandler<IEnumerable<UniversityDto>>(data));
     }
 
-    [HttpGet("{guid}")] //digunakan untuk mendapatkan data universitas berdasarkan GUID yang diberikan sebagai parameter.
-    public IActionResult GetByGuid(Guid guid)//Method ini digunakan untuk mendapatkan data universitas berdasarkan GUID.
+    // Metode untuk mengambil data university berdasarkan GUID
+    [HttpGet("{guid}")]
+    public IActionResult GetByGuid(Guid guid)
     {
-        var result = _universityRepository.GetByGuid(guid); //Data universitas diambil dari repositori menggunakan GUID yang diberikan.
-        if (result is null) //Jika data tidak ditemukan, maka akan mengembalikan respons "NotFound".
+        // Mengambil university berdasarkan GUID dari repository
+        var result = _universityRepository.GetByGuid(guid);
+        // Jika data university tidak ditemukan
+        if (result is null)
         {
-            return NotFound("Id Not Found");
+            // Mengembalikan respon error dengan kode 404
+            return NotFound(new ResponseErrorHandler
+            {
+                Code = StatusCodes.Status404NotFound,
+                Status = HttpStatusCode.NotFound.ToString(),
+                Message = "Data Not Found"
+            });
         }
-        return Ok((UniversityDto)result); //Respons "Ok" akan mengembalikan data universitas dalam format explicit operator.
+        // Mengembalikan data university dalam format DTO dengan kode 200
+        return Ok(new ResponseOKHandler<UniversityDto>((UniversityDto)result));
     }
+
 
     [HttpPost]
-    public IActionResult Create(CreateUniversityDto universityDto) //Data universitas baru dibuat dengan menggunakan CreateUniversityDto
+    public IActionResult Create(CreateUniversityDto universityDto) //Data University baru dibuat dengan menggunakan CreateUniversityDto
     {
-        var result = _universityRepository.Create(universityDto);
-        if (result is null) //jika pembuatan gagal, maka akan mengembalikan respons "BadRequest".
+        try
         {
-            return BadRequest("Failed to create data");
-        }
 
-        return Ok((UniversityDto)result); //Respons "Ok" akan mengembalikan data universitas dalam format explicit operator
+            // Membuat university baru di repository
+            var result = _universityRepository.Create(universityDto);
+
+            // Mengembalikan data university yang baru dibuat dalam format DTO dengan kode 200
+            return Ok(new ResponseOKHandler<UniversityDto>((UniversityDto)result));
+        }
+        catch (ExceptionHandler ex)
+        {
+            // Jika terjadi error saat pembuatan, mengembalikan respon error dengan kode 500
+            return StatusCode(StatusCodes.Status500InternalServerError, new ResponseErrorHandler
+            {
+                Code = StatusCodes.Status500InternalServerError,
+                Status = HttpStatusCode.InternalServerError.ToString(),
+                Message = "Failed to create data",
+                Error = ex.Message
+            });
+        }
     }
 
     [HttpPut]
     public IActionResult Update(UniversityDto universityDto)
     {
-        var entity = _universityRepository.GetByGuid(universityDto.Guid);// Data universitas yang akan diperbarui diambil menggunakan method GetById.
-        if (entity is null) //Jika data tidak ditemukan, maka akan mengembalikan respons "NotFound".
+        try
         {
-            return NotFound("Id Not Found");
+            // Mengambil data university berdasarkan GUID dari DTO
+            var entity = _universityRepository.GetByGuid(universityDto.Guid);
+            // Jika data university tidak ditemukan
+            if (entity is null)
+            {
+                // Mengembalikan respon error dengan kode 404
+                return NotFound(new ResponseErrorHandler
+                {
+                    Code = StatusCodes.Status404NotFound,
+                    Status = HttpStatusCode.NotFound.ToString(),
+                    Message = "Data Not Found"
+                });
+            }
+
+            // Mengatur data university yang akan diperbarui dari DTO
+            University toUpdate = universityDto;
+            toUpdate.CreatedDate = entity.CreatedDate;
+
+            // Memperbarui data university di repository
+            _universityRepository.Update(toUpdate);
+
+            // Mengembalikan pesan bahwa data telah diperbarui dengan kode 200
+            return Ok(new ResponseOKHandler<string>("Data Updated"));
         }
-
-        University toUpdate = universityDto;//Jika data ditemukan, objek universityDto akan diubah menjadi objek University dengan beberapa perubahan, kemudian dipasskan ke repository untuk pembaruan.
-        toUpdate.CreatedDate = entity.CreatedDate;
-
-        var result = _universityRepository.Update(toUpdate);
-        if (!result)//jika pembuatan gagal, maka akan mengembalikan respons "BadRequest".
+        catch (ExceptionHandler ex)
         {
-            return BadRequest("Failed to update data");
+            // Jika terjadi error saat pembaruan, mengembalikan respon error dengan kode 500
+            return StatusCode(StatusCodes.Status500InternalServerError, new ResponseErrorHandler
+            {
+                Code = StatusCodes.Status500InternalServerError,
+                Status = HttpStatusCode.InternalServerError.ToString(),
+                Message = "Failed to update data",
+                Error = ex.Message
+            });
         }
-
-        return Ok("Data Updated");//Jika pembaruan berhasil, akan mengembalikan respons "Ok
-
     }
 
-    [HttpDelete("{guid}")]//digunakan untuk menghapus data universitas berdasarkan GUID.
+
+
+    // Metode untuk menghapus data university berdasarkan GUID
+    [HttpDelete("{guid}")]
     public IActionResult Delete(Guid guid)
     {
-        var entity = _universityRepository.GetByGuid(guid);// Data universitas yang akan Delet diambil menggunakan method GetById.
-        if (entity is null) //Jika data tidak ditemukan, maka akan mengembalikan respons "NotFound".
+        try
         {
-            return NotFound("Id Not Found");
-        }
+            // Mengambil data university berdasarkan GUID
+            var entity = _universityRepository.GetByGuid(guid);
+            // Jika data university tidak ditemukan
+            if (entity is null)
+            {
+                // Mengembalikan respon error dengan kode 404
+                return NotFound(new ResponseErrorHandler
+                {
+                    Code = StatusCodes.Status404NotFound,
+                    Status = HttpStatusCode.NotFound.ToString(),
+                    Message = "Data Not Found"
+                });
+            }
 
-        var result = _universityRepository.Delete(entity);
-        if (!result) //jika Delet gagal, maka akan mengembalikan respons "BadRequest"..
+            // Menghapus data university dari repository
+            _universityRepository.Delete(entity);
+
+            // Mengembalikan pesan bahwa data telah dihapus dengan kode 200
+            return Ok(new ResponseOKHandler<string>("Data Deleted"));
+        }
+        catch (ExceptionHandler ex)
         {
-            return BadRequest("Failed to delete data");
+            // Jika terjadi error saat penghapusan, mengembalikan respon error dengan kode 500
+            return StatusCode(StatusCodes.Status500InternalServerError, new ResponseErrorHandler
+            {
+                Code = StatusCodes.Status500InternalServerError,
+                Status = HttpStatusCode.InternalServerError.ToString(),
+                Message = "Failed to create data",
+                Error = ex.Message
+            });
         }
-
-        return Ok("Data Deleted"); //Jika Delet berhasil, akan mengembalikan respons "Ok
     }
 }
+
+

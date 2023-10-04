@@ -1,98 +1,176 @@
-﻿
+﻿using API.Contracts;
 using API.DTOs.Rooms;
-using API.Contracts;
 using API.Models;
+using API.Utilities.Handler;
 using Microsoft.AspNetCore.Mvc;
+using System.Net;
 
-
-namespace API.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 public class RoomController : ControllerBase
 {
+    // Deklarasi variabel untuk repository room
     private readonly IRoomRepository _roomRepository;
-    //Constructor ini menerima sebuah instance dari IRoomRepository melalui dependency injection dan menyimpannya di dalam field _roomRepository.
+
+    // Konstruktor dengan parameter dependency injection untuk repository room
     public RoomController(IRoomRepository roomRepository)
     {
         _roomRepository = roomRepository;
     }
 
+
+    // Metode untuk mengambil semua data room
     [HttpGet]
     public IActionResult GetAll()
     {
-        var result = _roomRepository.GetAll();//Data Room diambil dari repositori
-        if (!result.Any()) //Jika tidak ada data yang ditemukan, maka akan mengembalikan respons "NotFound".
+        // Mengambil semua room dari repository
+        var result = _roomRepository.GetAll();
+        // Memeriksa jika tidak ada data room
+        if (!result.Any())
         {
-            return NotFound("Data Not Found");
+            // Mengembalikan respon error dengan kode 404 jika tidak ada data
+            return NotFound(new ResponseErrorHandler
+            {
+                Code = StatusCodes.Status404NotFound,
+                Status = HttpStatusCode.NotFound.ToString(),
+                Message = "Data Not Found"
+            });
         }
-
-        var data = result.Select(x => (RoomDto)x); //Data Room diubah menjadi DTO (Data Transfer Object) dengan expicit operator
-        return Ok(data);
-
+        // Mengkonversi hasil ke DTO
+        var data = result.Select(x => (RoomDto)x);
+        // Mengembalikan data room dalam format DTO dengan kode 200
+        return Ok(new ResponseOKHandler<IEnumerable<RoomDto>>(data));
     }
 
-    [HttpGet("{guid}")] //digunakan untuk mendapatkan data Room berdasarkan GUID yang diberikan sebagai parameter.
-    public IActionResult GetByGuid(Guid guid)//Method ini digunakan untuk mendapatkan data Room berdasarkan GUID.
+    // Metode untuk mengambil data room berdasarkan GUID
+    [HttpGet("{guid}")]
+    public IActionResult GetByGuid(Guid guid)
     {
-        var result = _roomRepository.GetByGuid(guid); //Data Room diambil dari repositori menggunakan GUID yang diberikan.
-        if (result is null) //Jika data tidak ditemukan, maka akan mengembalikan respons "NotFound".
+        // Mengambil room berdasarkan GUID dari repository
+        var result = _roomRepository.GetByGuid(guid);
+        // Jika data room tidak ditemukan
+        if (result is null)
         {
-            return NotFound("Id Not Found"); 
+            // Mengembalikan respon error dengan kode 404
+            return NotFound(new ResponseErrorHandler
+            {
+                Code = StatusCodes.Status404NotFound,
+                Status = HttpStatusCode.NotFound.ToString(),
+                Message = "Data Not Found"
+            });
         }
-        return Ok((RoomDto)result);//Respons "Ok" akan mengembalikan data Room dalam format explicit operator.
-
+        // Mengembalikan data room dalam format DTO dengan kode 200
+        return Ok(new ResponseOKHandler<RoomDto>((RoomDto)result));
     }
+
 
     [HttpPost]
     public IActionResult Create(CreateRoomDto roomDto) //Data Room baru dibuat dengan menggunakan CreateRoomDto
     {
-        var result = _roomRepository.Create(roomDto);
-        if (result is null)//jika pembuatan gagal, maka akan mengembalikan respons "BadRequest".
+        try
         {
-            return BadRequest("Failed to create data");
-        }
 
-        return Ok((RoomDto)result); //Respons "Ok" akan mengembalikan data Room dalam format explicit operator
+            // Membuat room baru di repository
+            var result = _roomRepository.Create(roomDto);
+
+            // Mengembalikan data room yang baru dibuat dalam format DTO dengan kode 200
+            return Ok(new ResponseOKHandler<RoomDto>((RoomDto)result));
+        }
+        catch (ExceptionHandler ex)
+        {
+            // Jika terjadi error saat pembuatan, mengembalikan respon error dengan kode 500
+            return StatusCode(StatusCodes.Status500InternalServerError, new ResponseErrorHandler
+            {
+                Code = StatusCodes.Status500InternalServerError,
+                Status = HttpStatusCode.InternalServerError.ToString(),
+                Message = "Failed to create data",
+                Error = ex.Message
+            });
+        }
     }
 
     [HttpPut]
     public IActionResult Update(RoomDto roomDto)
     {
-        var entity = _roomRepository.GetByGuid(roomDto.Guid); // Data Room yang akan diperbarui diambil menggunakan method GetById.
-        if (entity is null)//Jika data tidak ditemukan, maka akan mengembalikan respons "NotFound".
+        try
         {
-            return NotFound("Id Not Found");
+            // Mengambil data room berdasarkan GUID dari DTO
+            var entity = _roomRepository.GetByGuid(roomDto.Guid);
+            // Jika data room tidak ditemukan
+            if (entity is null)
+            {
+                // Mengembalikan respon error dengan kode 404
+                return NotFound(new ResponseErrorHandler
+                {
+                    Code = StatusCodes.Status404NotFound,
+                    Status = HttpStatusCode.NotFound.ToString(),
+                    Message = "Data Not Found"
+                });
+            }
+
+            // Mengatur data room yang akan diperbarui dari DTO
+            Room toUpdate = roomDto;
+            toUpdate.CreatedDate = entity.CreatedDate;
+
+            // Memperbarui data room di repository
+            _roomRepository.Update(toUpdate);
+
+            // Mengembalikan pesan bahwa data telah diperbarui dengan kode 200
+            return Ok(new ResponseOKHandler<string>("Data Updated"));
         }
-
-        Room toUpdate = roomDto; //Jika data ditemukan, objek roomDto akan diubah menjadi objek Room dengan beberapa perubahan, kemudian dipasskan ke repository untuk pembaruan.
-        toUpdate.CreatedDate = entity.CreatedDate;
-
-        var result = _roomRepository.Update(toUpdate);
-        if (!result) //jika pembuatan gagal, maka akan mengembalikan respons "BadRequest".
+        catch (ExceptionHandler ex)
         {
-            return BadRequest("Failed to update data");
+            // Jika terjadi error saat pembaruan, mengembalikan respon error dengan kode 500
+            return StatusCode(StatusCodes.Status500InternalServerError, new ResponseErrorHandler
+            {
+                Code = StatusCodes.Status500InternalServerError,
+                Status = HttpStatusCode.InternalServerError.ToString(),
+                Message = "Failed to update data",
+                Error = ex.Message
+            });
         }
-
-        return Ok("Data Updated"); //Jika pembaruan berhasil, akan mengembalikan respons "Ok
     }
 
 
 
-    [HttpDelete("{guid}")] //digunakan untuk menghapus data Room berdasarkan GUID.
+    // Metode untuk menghapus data room berdasarkan GUID
+    [HttpDelete("{guid}")]
     public IActionResult Delete(Guid guid)
     {
-        var entity = _roomRepository.GetByGuid(guid);// Data room yang akan Delet diambil menggunakan method GetById.
-        if (entity is null) //Jika data tidak ditemukan, maka akan mengembalikan respons "NotFound".
+        try
         {
-            return NotFound("Id Not Found");
-        }
+            // Mengambil data room berdasarkan GUID
+            var entity = _roomRepository.GetByGuid(guid);
+            // Jika data room tidak ditemukan
+            if (entity is null)
+            {
+                // Mengembalikan respon error dengan kode 404
+                return NotFound(new ResponseErrorHandler
+                {
+                    Code = StatusCodes.Status404NotFound,
+                    Status = HttpStatusCode.NotFound.ToString(),
+                    Message = "Data Not Found"
+                });
+            }
 
-        var result = _roomRepository.Delete(entity);
-        if (!result) //jika Delet gagal, maka akan mengembalikan respons "BadRequest"..
+            // Menghapus data room dari repository
+            _roomRepository.Delete(entity);
+
+            // Mengembalikan pesan bahwa data telah dihapus dengan kode 200
+            return Ok(new ResponseOKHandler<string>("Data Deleted"));
+        }
+        catch (ExceptionHandler ex)
         {
-            return BadRequest("Failed to delete data");
+            // Jika terjadi error saat penghapusan, mengembalikan respon error dengan kode 500
+            return StatusCode(StatusCodes.Status500InternalServerError, new ResponseErrorHandler
+            {
+                Code = StatusCodes.Status500InternalServerError,
+                Status = HttpStatusCode.InternalServerError.ToString(),
+                Message = "Failed to create data",
+                Error = ex.Message
+            });
         }
-
-        return Ok("Data Deleted"); //Jika Delet berhasil, akan mengembalikan respons "Ok"
     }
 }
+
+

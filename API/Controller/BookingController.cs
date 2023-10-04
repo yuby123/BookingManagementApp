@@ -1,104 +1,176 @@
 ﻿using API.Contracts;
-using API.Controller;
 using API.DTOs.Bookings;
 using API.Models;
-using API.Repositories;
+using API.Utilities.Handler;
 using Microsoft.AspNetCore.Mvc;
-using System;
-
-namespace API.Controller;
+using System.Net;
 
 [ApiController]
 [Route("api/[controller]")]
 public class BookingController : ControllerBase
 {
+    // Deklarasi variabel untuk repository booking
     private readonly IBookingRepository _bookingRepository;
-    //Constructor ini menerima sebuah instance dari IBookingRepository melalui dependency injection dan menyimpannya di dalam field _roleRepository.
+
+    // Konstruktor dengan parameter dependency injection untuk repository booking
     public BookingController(IBookingRepository bookingRepository)
     {
         _bookingRepository = bookingRepository;
     }
 
+
+    // Metode untuk mengambil semua data booking
     [HttpGet]
-    public IActionResult GetAll() 
+    public IActionResult GetAll()
     {
-        var result = _bookingRepository.GetAll(); //Data Booking diambil dari repositori
-        if (!result.Any())//Jika tidak ada data yang ditemukan, maka akan mengembalikan respons "NotFound".
+        // Mengambil semua booking dari repository
+        var result = _bookingRepository.GetAll();
+        // Memeriksa jika tidak ada data booking
+        if (!result.Any())
         {
-            return NotFound("Data Not Found");
+            // Mengembalikan respon error dengan kode 404 jika tidak ada data
+            return NotFound(new ResponseErrorHandler
+            {
+                Code = StatusCodes.Status404NotFound,
+                Status = HttpStatusCode.NotFound.ToString(),
+                Message = "Data Not Found"
+            });
         }
-
-        var data = result.Select(x => (BookingDto)x); //Data Booking diubah menjadi DTO (Data Transfer Object) dengan expicit operator
-
-        return Ok(data);
-
+        // Mengkonversi hasil ke DTO
+        var data = result.Select(x => (BookingDto)x);
+        // Mengembalikan data booking dalam format DTO dengan kode 200
+        return Ok(new ResponseOKHandler<IEnumerable<BookingDto>>(data));
     }
 
-    [HttpGet("{guid}")] //digunakan untuk mendapatkan data Booking berdasarkan GUID yang diberikan sebagai parameter.
-    public IActionResult GetByGuid(Guid guid) //Method ini digunakan untuk mendapatkan data Booking berdasarkan GUID.
+    // Metode untuk mengambil data booking berdasarkan GUID
+    [HttpGet("{guid}")]
+    public IActionResult GetByGuid(Guid guid)
     {
-        var result = _bookingRepository.GetByGuid(guid); //Data Booking diambil dari repositori menggunakan GUID yang diberikan.
-        if (result is null) //Jika data tidak ditemukan, maka akan mengembalikan respons "NotFound".
+        // Mengambil booking berdasarkan GUID dari repository
+        var result = _bookingRepository.GetByGuid(guid);
+        // Jika data booking tidak ditemukan
+        if (result is null)
         {
-            return NotFound("Id Not Found");
+            // Mengembalikan respon error dengan kode 404
+            return NotFound(new ResponseErrorHandler
+            {
+                Code = StatusCodes.Status404NotFound,
+                Status = HttpStatusCode.NotFound.ToString(),
+                Message = "Data Not Found"
+            });
         }
-        return Ok((BookingDto)result); //Respons "Ok" akan mengembalikan data Booking dalam format explicit operator.
+        // Mengembalikan data booking dalam format DTO dengan kode 200
+        return Ok(new ResponseOKHandler<BookingDto>((BookingDto)result));
     }
 
 
     [HttpPost]
     public IActionResult Create(CreateBookingDto bookingDto) //Data Booking baru dibuat dengan menggunakan CreateBookingDto
     {
-        var result = _bookingRepository.Create(bookingDto); 
-        if (result is null) //jika pembuatan gagal, maka akan mengembalikan respons "BadRequest".
+        try
         {
-            return BadRequest("Failed to create data");
+
+            // Membuat booking baru di repository
+            var result = _bookingRepository.Create(bookingDto);
+
+            // Mengembalikan data booking yang baru dibuat dalam format DTO dengan kode 200
+            return Ok(new ResponseOKHandler<BookingDto>((BookingDto)result));
         }
-
-        return Ok((BookingDto)result); //Respons "Ok" akan mengembalikan data Booking dalam format explicit operator
+        catch (ExceptionHandler ex)
+        {
+            // Jika terjadi error saat pembuatan, mengembalikan respon error dengan kode 500
+            return StatusCode(StatusCodes.Status500InternalServerError, new ResponseErrorHandler
+            {
+                Code = StatusCodes.Status500InternalServerError,
+                Status = HttpStatusCode.InternalServerError.ToString(),
+                Message = "Failed to create data",
+                Error = ex.Message
+            });
+        }
     }
-
 
     [HttpPut]
     public IActionResult Update(BookingDto bookingDto)
     {
-        var entity = _bookingRepository.GetByGuid(bookingDto.Guid); // Data Booking yang akan diperbarui diambil menggunakan method GetById.
-        if (entity is null) //Jika data tidak ditemukan, maka akan mengembalikan respons "NotFound".
+        try
         {
-            return NotFound("Id Not Found");
+            // Mengambil data booking berdasarkan GUID dari DTO
+            var entity = _bookingRepository.GetByGuid(bookingDto.Guid);
+            // Jika data booking tidak ditemukan
+            if (entity is null)
+            {
+                // Mengembalikan respon error dengan kode 404
+                return NotFound(new ResponseErrorHandler
+                {
+                    Code = StatusCodes.Status404NotFound,
+                    Status = HttpStatusCode.NotFound.ToString(),
+                    Message = "Data Not Found"
+                });
+            }
+
+            // Mengatur data booking yang akan diperbarui dari DTO
+            Booking toUpdate = bookingDto;
+            toUpdate.CreatedDate = entity.CreatedDate;
+
+            // Memperbarui data booking di repository
+            _bookingRepository.Update(toUpdate);
+
+            // Mengembalikan pesan bahwa data telah diperbarui dengan kode 200
+            return Ok(new ResponseOKHandler<string>("Data Updated"));
         }
-
-        Booking toUpdate = bookingDto; //Jika data ditemukan, objek roleDto akan diubah menjadi objek Booking dengan beberapa perubahan, kemudian dipasskan ke repository untuk pembaruan.
-        toUpdate.CreatedDate = entity.CreatedDate;
-
-        var result = _bookingRepository.Update(toUpdate);
-        if (!result) //jika pembuatan gagal, maka akan mengembalikan respons "BadRequest".
+        catch (ExceptionHandler ex)
         {
-            return BadRequest("Failed to update data");
+            // Jika terjadi error saat pembaruan, mengembalikan respon error dengan kode 500
+            return StatusCode(StatusCodes.Status500InternalServerError, new ResponseErrorHandler
+            {
+                Code = StatusCodes.Status500InternalServerError,
+                Status = HttpStatusCode.InternalServerError.ToString(),
+                Message = "Failed to update data",
+                Error = ex.Message
+            });
         }
-
-        return Ok("Data Updated"); //Jika pembaruan berhasil, akan mengembalikan respons "Ok
     }
 
 
 
-    [HttpDelete("{guid}")] //digunakan untuk menghapus data Room berdasarkan GUID.
+    // Metode untuk menghapus data booking berdasarkan GUID
+    [HttpDelete("{guid}")]
     public IActionResult Delete(Guid guid)
     {
-        var entity = _bookingRepository.GetByGuid(guid);// Data room yang akan Delet diambil menggunakan method GetById.
-        if (entity is null) //Jika data tidak ditemukan, maka akan mengembalikan respons "NotFound".
+        try
         {
-            return NotFound("Id Not Found");
-        }
+            // Mengambil data booking berdasarkan GUID
+            var entity = _bookingRepository.GetByGuid(guid);
+            // Jika data booking tidak ditemukan
+            if (entity is null)
+            {
+                // Mengembalikan respon error dengan kode 404
+                return NotFound(new ResponseErrorHandler
+                {
+                    Code = StatusCodes.Status404NotFound,
+                    Status = HttpStatusCode.NotFound.ToString(),
+                    Message = "Data Not Found"
+                });
+            }
 
-        var result = _bookingRepository.Delete(entity);
-        if (!result) //jika Delet gagal, maka akan mengembalikan respons "BadRequest"..
+            // Menghapus data booking dari repository
+            _bookingRepository.Delete(entity);
+
+            // Mengembalikan pesan bahwa data telah dihapus dengan kode 200
+            return Ok(new ResponseOKHandler<string>("Data Deleted"));
+        }
+        catch (ExceptionHandler ex)
         {
-            return BadRequest("Failed to delete data");
+            // Jika terjadi error saat penghapusan, mengembalikan respon error dengan kode 500
+            return StatusCode(StatusCodes.Status500InternalServerError, new ResponseErrorHandler
+            {
+                Code = StatusCodes.Status500InternalServerError,
+                Status = HttpStatusCode.InternalServerError.ToString(),
+                Message = "Failed to create data",
+                Error = ex.Message
+            });
         }
-
-        return Ok("Data Deleted"); //Jika Delet berhasil, akan mengembalikan respons "Ok
     }
-
 }
+
 

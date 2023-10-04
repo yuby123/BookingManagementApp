@@ -14,7 +14,7 @@ public class EmployeeRepository : GeneralRepository<Employee>, IEmployeeReposito
 
         _context = context;
     }
-    public string GetLastNik()
+    public string? GetLastNik()
     {
         return _context.Employees
                        .OrderByDescending(e => e.Nik)

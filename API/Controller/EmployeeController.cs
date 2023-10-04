@@ -14,19 +14,25 @@ namespace API.Controller;
 [Route("api/[controller]")]
 public class EmployeeController : ControllerBase
 {
+    // Deklarasi variabel untuk repository employee
     private readonly IEmployeeRepository _employeeRepository;
 
+    // Konstruktor dengan parameter dependency injection untuk repository employee
     public EmployeeController(IEmployeeRepository employeeRepository)
     {
         _employeeRepository = employeeRepository;
     }
 
+    // Metode untuk mengambil semua data employee
     [HttpGet]
     public IActionResult GetAll()
     {
-        var result = _employeeRepository.GetAll();//Data Employee diambil dari repositori
-        if (!result.Any()) //Jika tidak ada data yang ditemukan, maka akan mengembalikan respons "NotFound".
+        // Mengambil semua employee dari repository
+        var result = _employeeRepository.GetAll();
+        // Memeriksa jika tidak ada data employee
+        if (!result.Any())
         {
+            // Mengembalikan respon error dengan kode 404 jika tidak ada data
             return NotFound(new ResponseErrorHandler
             {
                 Code = StatusCodes.Status404NotFound,
@@ -34,16 +40,22 @@ public class EmployeeController : ControllerBase
                 Message = "Data Not Found"
             });
         }
-        var data = result.Select(x => (EmployeeDto)x); //Data Employee diubah menjadi DTO (Data Transfer Object) dengan expicit operator
+        // Mengkonversi hasil ke DTO
+        var data = result.Select(x => (EmployeeDto)x);
+        // Mengembalikan data employee dalam format DTO dengan kode 200
         return Ok(new ResponseOKHandler<IEnumerable<EmployeeDto>>(data));
     }
 
-    [HttpGet("{guid}")] //digunakan untuk mendapatkan data Employee berdasarkan GUID yang diberikan sebagai parameter.
-    public IActionResult GetByGuid(Guid guid) //Method ini digunakan untuk mendapatkan data Employee berdasarkan GUID.
+    // Metode untuk mengambil data employee berdasarkan GUID
+    [HttpGet("{guid}")]
+    public IActionResult GetByGuid(Guid guid)
     {
-        var result = _employeeRepository.GetByGuid(guid); //Data Employee diambil dari repositori menggunakan GUID yang diberikan.
-        if (result is null) //Jika data tidak ditemukan, maka akan mengembalikan respons "NotFound".
+        // Mengambil employee berdasarkan GUID dari repository
+        var result = _employeeRepository.GetByGuid(guid);
+        // Jika data employee tidak ditemukan
+        if (result is null)
         {
+            // Mengembalikan respon error dengan kode 404
             return NotFound(new ResponseErrorHandler
             {
                 Code = StatusCodes.Status404NotFound,
@@ -51,24 +63,29 @@ public class EmployeeController : ControllerBase
                 Message = "Data Not Found"
             });
         }
-        return Ok(new ResponseOKHandler<EmployeeDto>((EmployeeDto)result)); //Respons "Ok" akan mengembalikan data Employee dalam format explicit operator.
+        // Mengembalikan data employee dalam format DTO dengan kode 200
+        return Ok(new ResponseOKHandler<EmployeeDto>((EmployeeDto)result));
     }
-    
-   
 
+    // Metode untuk membuat data employee baru
     [HttpPost]
-    public IActionResult Create(CreatedEmployeeDto employeeDto) //Data Employee baru dibuat dengan menggunakan CreateEmployeeDto
+    public IActionResult Create(CreatedEmployeeDto employeeDto)
     {
         try
         {
+            // Membuat objek employee dari DTO
             Employee toCreate = employeeDto;
+            // Menghasilkan NIK baru untuk employee
             toCreate.Nik = GenerateHandler.Nik(_employeeRepository.GetLastNik());
+            // Membuat employee baru di repository
             var result = _employeeRepository.Create(toCreate);
 
+            // Mengembalikan data employee yang baru dibuat dalam format DTO dengan kode 200
             return Ok(new ResponseOKHandler<EmployeeDto>((EmployeeDto)result));
         }
         catch (ExceptionHandler ex)
         {
+            // Jika terjadi error saat pembuatan, mengembalikan respon error dengan kode 500
             return StatusCode(StatusCodes.Status500InternalServerError, new ResponseErrorHandler
             {
                 Code = StatusCodes.Status500InternalServerError,
@@ -79,15 +96,18 @@ public class EmployeeController : ControllerBase
         }
     }
 
-
+    // Metode untuk memperbarui data employee
     [HttpPut]
     public IActionResult Update(EmployeeDto employeeDto)
     {
         try
         {
+            // Mengambil data employee berdasarkan GUID dari DTO
             var entity = _employeeRepository.GetByGuid(employeeDto.Guid);
+            // Jika data employee tidak ditemukan
             if (entity is null)
             {
+                // Mengembalikan respon error dengan kode 404
                 return NotFound(new ResponseErrorHandler
                 {
                     Code = StatusCodes.Status404NotFound,
@@ -96,35 +116,42 @@ public class EmployeeController : ControllerBase
                 });
             }
 
+            // Mengatur data employee yang akan diperbarui dari DTO
             Employee toUpdate = employeeDto;
             toUpdate.Nik = entity.Nik;
             toUpdate.CreatedDate = entity.CreatedDate;
 
+            // Memperbarui data employee di repository
             _employeeRepository.Update(toUpdate);
 
+            // Mengembalikan pesan bahwa data telah diperbarui dengan kode 200
             return Ok(new ResponseOKHandler<string>("Data Updated"));
         }
         catch (ExceptionHandler ex)
         {
+            // Jika terjadi error saat pembaruan, mengembalikan respon error dengan kode 500
             return StatusCode(StatusCodes.Status500InternalServerError, new ResponseErrorHandler
             {
                 Code = StatusCodes.Status500InternalServerError,
                 Status = HttpStatusCode.InternalServerError.ToString(),
-                Message = "Failed to create data",
+                Message = "Failed to update data",
                 Error = ex.Message
             });
         }
     }
 
-
+    // Metode untuk menghapus data employee berdasarkan GUID
     [HttpDelete("{guid}")]
     public IActionResult Delete(Guid guid)
     {
         try
         {
+            // Mengambil data employee berdasarkan GUID
             var entity = _employeeRepository.GetByGuid(guid);
+            // Jika data employee tidak ditemukan
             if (entity is null)
             {
+                // Mengembalikan respon error dengan kode 404
                 return NotFound(new ResponseErrorHandler
                 {
                     Code = StatusCodes.Status404NotFound,
@@ -133,12 +160,15 @@ public class EmployeeController : ControllerBase
                 });
             }
 
+            // Menghapus data employee dari repository
             _employeeRepository.Delete(entity);
 
+            // Mengembalikan pesan bahwa data telah dihapus dengan kode 200
             return Ok(new ResponseOKHandler<string>("Data Deleted"));
         }
         catch (ExceptionHandler ex)
         {
+            // Jika terjadi error saat penghapusan, mengembalikan respon error dengan kode 500
             return StatusCode(StatusCodes.Status500InternalServerError, new ResponseErrorHandler
             {
                 Code = StatusCodes.Status500InternalServerError,
