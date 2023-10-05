@@ -3,7 +3,7 @@
 namespace API.DTOs.Accounts;
 public class CreateAccountDto
 {
-    public Guid Guid { get; set; }
+    public Guid Employee { get; set; }
     public string Password { get; set; }
     public int Otp { get; set; }
     public bool IsUsed { get; set; }
@@ -15,7 +15,7 @@ public class CreateAccountDto
         return new Account
 
         {
-            Guid = createAccountDto.Guid,
+            Guid = createAccountDto.Employee,
             Password = createAccountDto.Password,
             Otp = createAccountDto.Otp,
             IsUsed = createAccountDto.IsUsed,

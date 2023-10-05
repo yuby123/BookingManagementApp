@@ -1,7 +1,6 @@
 ﻿using API.Contracts;
 using API.Data;
 using API.Models;
-using Microsoft.EntityFrameworkCore;
 
 namespace API.Repositories;
 
@@ -20,6 +19,12 @@ public class EmployeeRepository : GeneralRepository<Employee>, IEmployeeReposito
                        .OrderByDescending(e => e.Nik)
                        .Select(e => e.Nik)
                        .FirstOrDefault();
+    }
+    public Employee GetEmail(string email)
+    {
+        var entity = _context.Set<Employee>().FirstOrDefault(e => e.Email == email);
+        _context.ChangeTracker.Clear();
+        return entity;
     }
 
 }
