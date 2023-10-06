@@ -7,11 +7,17 @@ namespace API.Repositories;
 public class UniversityRepository : GeneralRepository<University>, IUniversityRepository
 {
     private readonly BookingManagementDbContext _context;
-    public UniversityRepository(BookingManagementDbContext context) : base(context) { }
-    public University GetByCodeAndName(string code, string name)
+    public UniversityRepository(BookingManagementDbContext context) : base(context)
     {
-        var entity = _context.Set<University>().FirstOrDefault(e => e.Name == name && e.Code == code);
-        _context.ChangeTracker.Clear();
-        return entity;
+        _context = context;
+    }
+
+    public University GetCodeName(string code, string name)
+    {
+        var codeName = _context //akses db context
+            .Set<University>() //set bahwa yang akan diakses adalah university
+            .FirstOrDefault(u => u.Code == code && u.Name == name); //LINQ untuk find data beradasarkan code dan name
+        _context.ChangeTracker.Clear(); //Menghapus entitas dari Change Tracker untuk mencegah perubahan yang tidak diinginkan. 
+        return codeName;
     }
 }

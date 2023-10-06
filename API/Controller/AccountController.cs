@@ -4,8 +4,9 @@ using API.Models;
 using API.Utilities.Handler;
 using API.Utilities.Handlers;
 using Microsoft.AspNetCore.Mvc;
-using Server.DTOs.Accounts;
+using API.DTOs.Accounts;
 using System.Net;
+using System.Security.Principal;
 using System.Transactions;
 
 namespace API.Controllers;
@@ -14,12 +15,17 @@ namespace API.Controllers;
 [Route("server/[controller]")]
 public class AccountController : ControllerBase
 {
+    // Deklarasi variabel untuk repository dan handler
     private readonly IAccountRepository _accountRepository;
     private readonly IEmployeeRepository _employeeRepository;
     private readonly IEducationRepository _educationRepository;
     private readonly IUniversityRepository _universityRepository;
     private readonly IEmailHandler _emailHandler;
-    public AccountController(IAccountRepository accountRepository, IEmployeeRepository employeeRepository, IEducationRepository educationRepository, IUniversityRepository universityRepository, IEmailHandler emailHandler)
+
+    // Konstruktor untuk inject dependency
+    public AccountController(IAccountRepository accountRepository, IEmployeeRepository employeeRepository,
+        IEducationRepository educationRepository, IUniversityRepository universityRepository,
+        IEmailHandler emailHandler)
     {
         _accountRepository = accountRepository;
         _employeeRepository = employeeRepository;
@@ -28,16 +34,15 @@ public class AccountController : ControllerBase
         _emailHandler = emailHandler;
     }
 
-    /*
-     * Pada class Controller memiliki function untuk get all data 
-     * yang ada dengan melakukan penarikan data berdasarkan atribut yang ada pada calss DTO dengan operator Explicit.
-     */
-
+    // Endpoint untuk fitur lupa password
     [HttpPut("ForgetPassword")]
     public IActionResult ForgetPassword(string email)
     {
+        // Mendapatkan semua data employee dan akun
         var employee = _employeeRepository.GetAll();
         var account = _accountRepository.GetAll();
+
+        // Cek jika tidak ada data employee atau akun
         if (!(employee.Any() && account.Any()))
         {
             return NotFound(new ResponseErrorHandler
@@ -47,17 +52,22 @@ public class AccountController : ControllerBase
                 Message = "Data Not Found"
             });
         }
+
+        // Mendapatkan data berdasarkan email
         var data = _employeeRepository.GetEmail(email);
+
+        // Update data akun dengan OTP baru
         var toUpdate = (Account)_accountRepository.GetByGuid(data.Guid);
-
-
         Random random = new Random();
         toUpdate.Otp = random.Next(100000, 999999);
         toUpdate.ExpiredTime = DateTime.Now.AddMinutes(5);
         toUpdate.IsUsed = false;
-        var results = _accountRepository.Update(toUpdate);
+        _accountRepository.Update(toUpdate);
 
+        // Kirim OTP melalui email
         _emailHandler.Send("Forgot Password", $"Your OTP is {toUpdate.Otp}", email);
+
+        // Dapatkan semua data akun untuk response
         account = _accountRepository.GetAll();
         var result = from acc in account
                      join emp in employee on acc.Guid equals emp.Guid
@@ -69,19 +79,19 @@ public class AccountController : ControllerBase
                          ExpiredDate = acc.ExpiredTime
                      };
         return Ok(new ResponseOKHandler<IEnumerable<ForgetPasswordDto>>(result));
-
     }
 
+    // Endpoint untuk mengubah password
     [HttpPut("ChangePassword")]
     public IActionResult ChangePassword(ChangePasswordDto changePasswordDto)
     {
         try
         {
-           
             var data = _employeeRepository.GetEmail(changePasswordDto.Email);
             var accounts = _accountRepository.GetByGuid(data.Guid);
-
-            if (data == null)
+            
+            //validasi cek akun
+            if (accounts == null)
             {
                 return NotFound(new ResponseErrorHandler
                 {
@@ -91,33 +101,36 @@ public class AccountController : ControllerBase
                 });
             }
 
+            // Validasi input pengguna
             if (changePasswordDto.NewPassword != changePasswordDto.ConfirmPassword)
                 return Ok(new ResponseOKHandler<string>("Password Not Match"));
 
             if (!accounts.Otp.Equals(changePasswordDto.Otp))
-                return NotFound(new ResponseErrorHandler 
-                { 
-                    Code = StatusCodes.Status404NotFound, 
-                    Status = HttpStatusCode.NotFound.ToString(), 
-                    Message = "Otp Is Incorrect" 
+                return NotFound(new ResponseErrorHandler
+                {
+                    Code = StatusCodes.Status404NotFound,
+                    Status = HttpStatusCode.NotFound.ToString(),
+                    Message = "Otp Is Incorrect"
                 });
 
+            // Validasi status OTP
             if (accounts.IsUsed)
-                return BadRequest(new ResponseErrorHandler 
-                { 
-                    Code = StatusCodes.Status400BadRequest, 
-                    Status = HttpStatusCode.BadRequest.ToString(), 
-                    Message = "Otp Has Been Used" 
+                return BadRequest(new ResponseErrorHandler
+                {
+                    Code = StatusCodes.Status400BadRequest,
+                    Status = HttpStatusCode.BadRequest.ToString(),
+                    Message = "Otp Has Been Used"
                 });
 
             if (DateTime.Now > accounts.ExpiredTime)
-                return BadRequest(new ResponseErrorHandler 
-                { 
-                    Code = StatusCodes.Status400BadRequest, 
-                    Status = HttpStatusCode.BadRequest.ToString(), 
-                    Message = "Otp Was Expired" 
+                return BadRequest(new ResponseErrorHandler
+                {
+                    Code = StatusCodes.Status400BadRequest,
+                    Status = HttpStatusCode.BadRequest.ToString(),
+                    Message = "Otp Was Expired"
                 });
 
+            // Update data akun dengan password baru
             accounts.IsUsed = true;
             accounts.Password = HashingHandler.HashPassword(changePasswordDto.ConfirmPassword);
             _accountRepository.Update(accounts);
@@ -126,6 +139,7 @@ public class AccountController : ControllerBase
         }
         catch (Exception ex)
         {
+            // Mengembalikan response jika terjadi error
             return StatusCode(StatusCodes.Status500InternalServerError, new ResponseErrorHandler
             {
                 Code = StatusCodes.Status500InternalServerError,
@@ -136,91 +150,109 @@ public class AccountController : ControllerBase
         }
     }
 
-
-    [HttpPost("Registration")]
-    public IActionResult Registration(RegistrationDto registrationDto)
+    // Endpoint untuk registrasi akun baru
+    [HttpPost("Register")]
+    public IActionResult Register(RegistrationDto registrationDto)
     {
-        try
+        using (var transaction = new TransactionScope()) //mengelola transaction dg using (clear after used)
         {
-            using (var transaction = new TransactionScope())
+            try
             {
-                Employee toCreateEmployee = registrationDto;
-                toCreateEmployee.Nik = GenerateHandler.Nik(_employeeRepository.GetLastNik());
-                var resultEmp = _employeeRepository.Create(toCreateEmployee);
+                Employee toCreateEmp = registrationDto; //convert data DTO dari inputan user menjadi objek Employee
+                toCreateEmp.Nik = GenerateHandler.Nik(_employeeRepository.GetLastNik()); //set nik dg generate nik
+                var resultEmp = _employeeRepository.Create(toCreateEmp); //create data account menggunakan format data DTO implisit
 
-                var univercity = _universityRepository.GetByCodeAndName(registrationDto.UnivercityCode, registrationDto.UnivercityName);
-                if (univercity is null)
+                //cek apakah nama univ dan code nya sudah ada di DB
+                var univFindResult = _universityRepository.GetCodeName(registrationDto.UniversityCode, registrationDto.UniversityName);
+                if (univFindResult is null)
                 {
-                    univercity = _universityRepository.Create(registrationDto);
+                    //jika tidak ada maka membuat data baru
+                    univFindResult = _universityRepository.Create(registrationDto);
                 }
 
-                Education createEdu = registrationDto;
-                createEdu.Guid = resultEmp.Guid;
-                createEdu.UniversityGuid = univercity.Guid;
-                var resultedu = _educationRepository.Create(createEdu);
+                Education toCreateEdu = registrationDto;
+                toCreateEdu.Guid = resultEmp.Guid; //set Guid Education dengan Guid yang ada pada employee
+                toCreateEdu.UniversityGuid = univFindResult.Guid;
+                var resultedu = _educationRepository.Create(toCreateEdu);
 
-                if (registrationDto.NewPassword != registrationDto.ConfirmPassword)
+                //cek apakah password tidak sama dengan confirm password
+                if (registrationDto.Password != registrationDto.ConfirmPassword)
                 {
-                    return Ok(new ResponseOKHandler<string>("Password Not Match"));
+                    return BadRequest(new ResponseErrorHandler
+                    {
+                        Code = StatusCodes.Status400BadRequest,
+                        Status = HttpStatusCode.BadRequest.ToString(),
+                        Message = "NewPassword and ConfirmPassword do not match"
+                    });
                 }
 
                 Account toCreateAcc = registrationDto;
-                toCreateAcc.Guid = resultEmp.Guid;
-                toCreateAcc.Password = HashingHandler.HashPassword(registrationDto.ConfirmPassword);
-                var resultAcc = _accountRepository.Create(toCreateAcc);
-
-                transaction.Complete();
+                toCreateAcc.Guid = resultEmp.Guid; //set Guid Account dengan Guid yang ada pada employee
+                toCreateAcc.Password = HashingHandler.HashPassword(registrationDto.Password);
+                _accountRepository.Create(toCreateAcc);
 
 
-                return Ok(new ResponseOKHandler<string>("Account Success To Registed"));
+                transaction.Complete(); // Commit transaksi 
+                return Ok(new ResponseOKHandler<string>("Registration successfully"));
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, new ResponseErrorHandler
+                {
+                    Code = StatusCodes.Status500InternalServerError,
+                    Status = HttpStatusCode.InternalServerError.ToString(),
+                    Message = "Failed Registration Account",
+                    Error = ex.Message
+                });
             }
         }
-        catch (Exception ex)
-        {
-            return StatusCode(StatusCodes.Status500InternalServerError, new ResponseErrorHandler
-            {
-                Code = StatusCodes.Status500InternalServerError,
-                Status = HttpStatusCode.InternalServerError.ToString(),
-                Message = "Failed to Registration data",
-                Error = ex.Message
-            });
-        }
     }
-    [HttpGet("Login")]
-    public IActionResult Login(string Email, string Password)
+
+        // Endpoint untuk login
+        [HttpGet("Login")]
+    public IActionResult AuthenticateUser(string userEmail, string userPassword)
     {
-        var employee = _employeeRepository.GetAll();
-        var account = _accountRepository.GetAll();
-        if (!(employee.Any() && account.Any()))
+        // Mengambil semua data employee dan akun
+        var allEmployees = _employeeRepository.GetAll();
+        var allAccounts = _accountRepository.GetAll();
+
+        // Verifikasi apakah ada data untuk employee dan akun
+        if (!(allEmployees.Any() && allAccounts.Any()))
         {
             return NotFound(new ResponseErrorHandler
             {
                 Code = StatusCodes.Status404NotFound,
                 Status = HttpStatusCode.NotFound.ToString(),
-                Message = "Data Not Found"
+                Message = "No Records Found"
             });
         }
-        var data = _employeeRepository.GetEmail(Email);
-        if (data is null)
+
+        // Mencocokkan email dan password
+        var matchedEmployee = _employeeRepository.GetEmail(userEmail);
+        if (matchedEmployee == null)
         {
             return NotFound(new ResponseErrorHandler
             {
                 Code = StatusCodes.Status404NotFound,
                 Status = HttpStatusCode.NotFound.ToString(),
-                Message = "Email Not Registerd"
+                Message = "Email Not Recognized"
             });
         }
-        var accounts = _accountRepository.GetByGuid(data.Guid);
-        if (!HashingHandler.VerifyPassword(Password, accounts.Password))
+
+        // Mengambil akun pengguna berdasarkan GUID dari employee yang cocok
+        var userAccount = _accountRepository.GetByGuid(matchedEmployee.Guid);
+        // Verifikasi apakah password yang dimasukkan sesuai dengan password pada akun yang bersangkutan
+        if (!HashingHandler.VerifyPassword(userPassword, userAccount.Password))
         {
             return NotFound(new ResponseErrorHandler
             {
                 Code = StatusCodes.Status404NotFound,
                 Status = HttpStatusCode.NotFound.ToString(),
-                Message = "Wrong Password"
+                Message = "Invalid Password"
             });
         }
-        return Ok(new ResponseOKHandler<string>("Login Success"));
+
+        return Ok(new ResponseOKHandler<string>("Successfully Authenticated"));
     }
 
 
