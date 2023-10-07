@@ -6,12 +6,10 @@ namespace API.Repositories;
 
 public class EmployeeRepository : GeneralRepository<Employee>, IEmployeeRepository
 {
-    private readonly BookingManagementDbContext _context;
  
     public EmployeeRepository(BookingManagementDbContext context) : base(context) 
     { 
 
-        _context = context;
     }
     public string? GetLastNik()
     {

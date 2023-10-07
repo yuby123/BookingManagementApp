@@ -2,11 +2,13 @@
 namespace API.DTOs.Universities;
 using API.Models;
 using API.Utilities.Handler;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Net;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Roles = "user")]
 public class UniversityController : ControllerBase
 {
     // Deklarasi variabel untuk repository university

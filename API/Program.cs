@@ -125,6 +125,17 @@ builder.Services.AddEndpointsApiExplorer();
 
 // Mendaftarkan layanan untuk Swagger
 builder.Services.AddSwaggerGen();
+//Add CORS
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.AllowAnyOrigin();
+        policy.AllowAnyHeader();
+        policy.WithMethods("GET", "POST", "DELETE", "PUT");
+    });
+}
+    );
 
 var app = builder.Build();
 
@@ -137,6 +148,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 

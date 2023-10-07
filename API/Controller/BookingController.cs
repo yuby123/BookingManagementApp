@@ -2,11 +2,13 @@
 using API.DTOs.Bookings;
 using API.Models;
 using API.Utilities.Handler;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Net;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Roles = "manager")]
 public class BookingController : ControllerBase
 {
     // Deklarasi variabel untuk repository booking

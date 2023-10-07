@@ -16,7 +16,7 @@ namespace API.Controllers;
 
 [ApiController]
 [Route("server/[controller]")]
-[Authorize]
+[Authorize(Roles = "user, manager")]
 public class AccountController : ControllerBase
 {
     // Deklarasi variabel untuk repository dan handler
@@ -26,11 +26,13 @@ public class AccountController : ControllerBase
     private readonly IUniversityRepository _universityRepository;
     private readonly IEmailHandler _emailHandler;
     private readonly ITokenHandler _tokenHandler;
+    private readonly IAccountRoleRepository _accountRoleRepository;
+    private readonly IRoleRepository _roleRepository;
 
     // Konstruktor untuk inject dependency
     public AccountController(IAccountRepository accountRepository, IEmployeeRepository employeeRepository,
         IEducationRepository educationRepository, IUniversityRepository universityRepository,
-        IEmailHandler emailHandler, ITokenHandler tokenHandler)
+        IEmailHandler emailHandler, ITokenHandler tokenHandler, IRoleRepository roleRepository, IAccountRoleRepository accountRoleRepository)
     {
         _accountRepository = accountRepository;
         _employeeRepository = employeeRepository;
@@ -38,6 +40,8 @@ public class AccountController : ControllerBase
         _universityRepository = universityRepository;
         _emailHandler = emailHandler;
         _tokenHandler = tokenHandler;
+        _roleRepository = roleRepository;
+        _accountRoleRepository = accountRoleRepository;
     }
 
     // Endpoint untuk fitur lupa password
@@ -95,7 +99,7 @@ public class AccountController : ControllerBase
         {
             var data = _employeeRepository.GetEmail(changePasswordDto.Email);
             var accounts = _accountRepository.GetByGuid(data.Guid);
-            
+
             //validasi cek akun
             if (accounts == null)
             {
@@ -170,7 +174,7 @@ public class AccountController : ControllerBase
                 toCreateEmp.Nik = GenerateHandler.Nik(_employeeRepository.GetLastNik());
 
                 // Menyimpan data Employee ke database dan mendapatkan hasilnya
-                var resultEmp = _employeeRepository.Create(toCreateEmp);
+                _employeeRepository.Create(toCreateEmp);
 
                 // Mencari universitas berdasarkan kode dan nama dari inputan
                 var univFindResult = _universityRepository.GetCodeName(registrationDto.UniversityCode, registrationDto.UniversityName);
@@ -182,9 +186,9 @@ public class AccountController : ControllerBase
 
                 // Mengonversi DTO menjadi objek Education dan menyiapkan untuk penyimpanan
                 Education toCreateEdu = registrationDto;
-                toCreateEdu.Guid = resultEmp.Guid;
+                toCreateEdu.Guid = toCreateEmp.Guid;
                 toCreateEdu.UniversityGuid = univFindResult.Guid;
-                var resultedu = _educationRepository.Create(toCreateEdu);
+                _educationRepository.Create(toCreateEdu);
 
                 // Memastikan kata sandi dan konfirmasinya cocok
                 if (registrationDto.Password != registrationDto.ConfirmPassword)
@@ -199,10 +203,15 @@ public class AccountController : ControllerBase
 
                 // Mengonversi DTO menjadi objek Account untuk persiapan penyimpanan
                 Account toCreateAcc = registrationDto;
-                toCreateAcc.Guid = resultEmp.Guid;
+                toCreateAcc.Guid = toCreateEmp.Guid;
                 toCreateAcc.Password = HashingHandler.HashPassword(registrationDto.Password);
                 _accountRepository.Create(toCreateAcc);
 
+                var accountRole = _accountRoleRepository.Create(new AccountRole
+                {
+                    AccountGuid = toCreateAcc.Guid,
+                    RoleGuid = _roleRepository.GetDefaultRoleGuid() ?? throw new Exception("Default Role Not Found")
+                });
                 // Mengakhiri transaksi dan menyimpan semua perubahan
                 transaction.Complete();
 
@@ -223,59 +232,69 @@ public class AccountController : ControllerBase
 
 
     // Endpoint untuk login
-    [HttpGet("Login")]
+    [HttpPost("Login")]
     [AllowAnonymous]
-    public IActionResult AuthenticateUser(string userEmail, string userPassword)
+    public IActionResult Login(LoginDto loginDto)
     {
-        // Mengambil semua data employee dan akun
-        var allEmployees = _employeeRepository.GetAll();
-        var allAccounts = _accountRepository.GetAll();
-
-        // Verifikasi apakah ada data untuk employee dan akun
-        if (!(allEmployees.Any() && allAccounts.Any()))
+        try
         {
-            return NotFound(new ResponseErrorHandler
-            {
-                Code = StatusCodes.Status404NotFound,
-                Status = HttpStatusCode.NotFound.ToString(),
-                Message = "No Records Found"
-            });
-        }
+            // Mengambil semua data employee dan akun
+            var allEmployees = _employeeRepository.GetEmail(loginDto.Email);
 
-        // Mencocokkan email dan password
-        var matchedEmployee = _employeeRepository.GetEmail(userEmail);
-        if (matchedEmployee == null)
+            // Verifikasi apakah ada data untuk employee dan akun
+            if (allEmployees is null)
+            {
+                return NotFound(new ResponseErrorHandler
+                {
+                    Code = StatusCodes.Status404NotFound,
+                    Status = HttpStatusCode.NotFound.ToString(),
+                    Message = "Acount or Password is invalid!"
+                });
+            }
+
+            var account = _accountRepository.GetByGuid(allEmployees.Guid);
+            if (!HashingHandler.VerifyPassword(loginDto.Password, account!.Password))
+            {
+                return BadRequest(new ResponseErrorHandler
+                {
+                    Code = StatusCodes.Status400BadRequest,
+                    Status = HttpStatusCode.BadRequest.ToString(),
+                    Message = "Account or Password is invalid!"
+                });
+            }
+
+            var claims = new List<Claim>();
+            claims.Add(new Claim("Email", allEmployees.Email));
+            claims.Add(new Claim("FullName", string.Concat(allEmployees.FirstName + " " + allEmployees.LastName)));
+
+            var getRoleName = from ar in _accountRoleRepository.GetAll()
+                              join r in _roleRepository.GetAll() on ar.RoleGuid equals r.Guid
+                              where ar.AccountGuid == account.Guid
+                              select r.Name;
+
+            foreach (var roleName in getRoleName)
+            {
+                claims.Add(new Claim(ClaimTypes.Role, roleName));
+            }
+
+
+            var generateToken = _tokenHandler.Generate(claims);
+
+            return Ok(new ResponseOKHandler<object>("Login Success", new { Token = generateToken }));
+        }
+        catch (Exception ex)
         {
-            return NotFound(new ResponseErrorHandler
+            return StatusCode(StatusCodes.Status500InternalServerError, new ResponseErrorHandler
             {
-                Code = StatusCodes.Status404NotFound,
-                Status = HttpStatusCode.NotFound.ToString(),
-                Message = "Email Not Recognized"
+                Code = StatusCodes.Status500InternalServerError,
+                Status = HttpStatusCode.InternalServerError.ToString(),
+                Message = "Failed to Delete data",
+                Error = ex.Message
             });
+
         }
-
-        // Mengambil akun pengguna berdasarkan GUID dari employee yang cocok
-        var userAccount = _accountRepository.GetByGuid(matchedEmployee.Guid);
-        // Verifikasi apakah password yang dimasukkan sesuai dengan password pada akun yang bersangkutan
-        if (!HashingHandler.VerifyPassword(userPassword, userAccount.Password))
-        {
-            return NotFound(new ResponseErrorHandler
-            {
-                Code = StatusCodes.Status404NotFound,
-                Status = HttpStatusCode.NotFound.ToString(),
-                Message = "Invalid Password"
-            });
-        }
-
-
-        var claims = new List<Claim>();
-        claims.Add(new Claim("Email", matchedEmployee.Email));
-        claims.Add(new Claim("FullName", string.Concat(matchedEmployee.FirstName + " " + matchedEmployee.LastName)));
-
-        var generateToken = _tokenHandler.Generate(claims);
-
-        return Ok(new ResponseOKHandler<object>("Login Success", new { Token = generateToken }));
     }
+    
 
 
 

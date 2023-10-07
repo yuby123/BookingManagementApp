@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace API.Repositories;
 public class GeneralRepository<TEntity> : IGeneralRepository<TEntity> where TEntity : class
 {
-    private readonly BookingManagementDbContext _context;
+    protected readonly BookingManagementDbContext _context;
 
     // Konstruktor kelas GeneralRepository yang menerima DbContext sebagai argumen.
     protected GeneralRepository(BookingManagementDbContext context)

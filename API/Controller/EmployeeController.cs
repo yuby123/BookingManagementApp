@@ -5,6 +5,7 @@ using API.Models;
 using API.Repositories;
 using API.Utilities.Handler;
 using API.Utilities.Handlers;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Net;
 
@@ -12,6 +13,7 @@ namespace API.Controller;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Roles = "user, manager")]
 public class EmployeeController : ControllerBase
 {
     // Deklarasi variabel untuk repository employee
