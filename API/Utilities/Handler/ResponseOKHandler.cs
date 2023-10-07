@@ -27,5 +27,17 @@ namespace API.Utilities.Handler
             Status = HttpStatusCode.OK.ToString(); // Mengatur status HTTP ke "OK".
             Message = message; // Mengatur pesan sesuai dengan yang diberikan.
         }
+        public ResponseOKHandler(string message, TEntity data)
+        {
+            // Mengatur kode status HTTP ke 200 OK.
+            Code = StatusCodes.Status200OK;
+
+            // Mengatur status teks ke "OK".
+            Status = HttpStatusCode.OK.ToString();
+
+            // Mengatur pesan respons sesuai dengan yang diberikan sebagai parameter.
+            Message = message;
+            Data = data;
+        }
     }
 }

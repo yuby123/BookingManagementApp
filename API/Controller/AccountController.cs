@@ -4,15 +4,19 @@ using API.Models;
 using API.Utilities.Handler;
 using API.Utilities.Handlers;
 using Microsoft.AspNetCore.Mvc;
-using API.DTOs.Accounts;
 using System.Net;
 using System.Security.Principal;
 using System.Transactions;
+using Microsoft.IdentityModel.Tokens;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+
 
 namespace API.Controllers;
 
 [ApiController]
 [Route("server/[controller]")]
+[Authorize]
 public class AccountController : ControllerBase
 {
     // Deklarasi variabel untuk repository dan handler
@@ -21,17 +25,19 @@ public class AccountController : ControllerBase
     private readonly IEducationRepository _educationRepository;
     private readonly IUniversityRepository _universityRepository;
     private readonly IEmailHandler _emailHandler;
+    private readonly ITokenHandler _tokenHandler;
 
     // Konstruktor untuk inject dependency
     public AccountController(IAccountRepository accountRepository, IEmployeeRepository employeeRepository,
         IEducationRepository educationRepository, IUniversityRepository universityRepository,
-        IEmailHandler emailHandler)
+        IEmailHandler emailHandler, ITokenHandler tokenHandler)
     {
         _accountRepository = accountRepository;
         _employeeRepository = employeeRepository;
         _educationRepository = educationRepository;
         _universityRepository = universityRepository;
         _emailHandler = emailHandler;
+        _tokenHandler = tokenHandler;
     }
 
     // Endpoint untuk fitur lupa password
@@ -154,28 +160,33 @@ public class AccountController : ControllerBase
     [HttpPost("Register")]
     public IActionResult Register(RegistrationDto registrationDto)
     {
-        using (var transaction = new TransactionScope()) //mengelola transaction dg using (clear after used)
+        // Memulai transaksi dengan TransactionScope
+        using (var transaction = new TransactionScope())
         {
             try
             {
-                Employee toCreateEmp = registrationDto; //convert data DTO dari inputan user menjadi objek Employee
-                toCreateEmp.Nik = GenerateHandler.Nik(_employeeRepository.GetLastNik()); //set nik dg generate nik
-                var resultEmp = _employeeRepository.Create(toCreateEmp); //create data account menggunakan format data DTO implisit
+                // Mengonversi DTO menjadi objek Employee untuk persiapan penyimpanan
+                Employee toCreateEmp = registrationDto;
+                toCreateEmp.Nik = GenerateHandler.Nik(_employeeRepository.GetLastNik());
 
-                //cek apakah nama univ dan code nya sudah ada di DB
+                // Menyimpan data Employee ke database dan mendapatkan hasilnya
+                var resultEmp = _employeeRepository.Create(toCreateEmp);
+
+                // Mencari universitas berdasarkan kode dan nama dari inputan
                 var univFindResult = _universityRepository.GetCodeName(registrationDto.UniversityCode, registrationDto.UniversityName);
                 if (univFindResult is null)
                 {
-                    //jika tidak ada maka membuat data baru
+                    // Jika universitas tidak ditemukan, buat entri baru di database
                     univFindResult = _universityRepository.Create(registrationDto);
                 }
 
+                // Mengonversi DTO menjadi objek Education dan menyiapkan untuk penyimpanan
                 Education toCreateEdu = registrationDto;
-                toCreateEdu.Guid = resultEmp.Guid; //set Guid Education dengan Guid yang ada pada employee
+                toCreateEdu.Guid = resultEmp.Guid;
                 toCreateEdu.UniversityGuid = univFindResult.Guid;
                 var resultedu = _educationRepository.Create(toCreateEdu);
 
-                //cek apakah password tidak sama dengan confirm password
+                // Memastikan kata sandi dan konfirmasinya cocok
                 if (registrationDto.Password != registrationDto.ConfirmPassword)
                 {
                     return BadRequest(new ResponseErrorHandler
@@ -186,13 +197,15 @@ public class AccountController : ControllerBase
                     });
                 }
 
+                // Mengonversi DTO menjadi objek Account untuk persiapan penyimpanan
                 Account toCreateAcc = registrationDto;
-                toCreateAcc.Guid = resultEmp.Guid; //set Guid Account dengan Guid yang ada pada employee
+                toCreateAcc.Guid = resultEmp.Guid;
                 toCreateAcc.Password = HashingHandler.HashPassword(registrationDto.Password);
                 _accountRepository.Create(toCreateAcc);
 
+                // Mengakhiri transaksi dan menyimpan semua perubahan
+                transaction.Complete();
 
-                transaction.Complete(); // Commit transaksi 
                 return Ok(new ResponseOKHandler<string>("Registration successfully"));
             }
             catch (Exception ex)
@@ -208,8 +221,10 @@ public class AccountController : ControllerBase
         }
     }
 
-        // Endpoint untuk login
-        [HttpGet("Login")]
+
+    // Endpoint untuk login
+    [HttpGet("Login")]
+    [AllowAnonymous]
     public IActionResult AuthenticateUser(string userEmail, string userPassword)
     {
         // Mengambil semua data employee dan akun
@@ -252,7 +267,14 @@ public class AccountController : ControllerBase
             });
         }
 
-        return Ok(new ResponseOKHandler<string>("Successfully Authenticated"));
+
+        var claims = new List<Claim>();
+        claims.Add(new Claim("Email", matchedEmployee.Email));
+        claims.Add(new Claim("FullName", string.Concat(matchedEmployee.FirstName + " " + matchedEmployee.LastName)));
+
+        var generateToken = _tokenHandler.Generate(claims);
+
+        return Ok(new ResponseOKHandler<object>("Login Success", new { Token = generateToken }));
     }
 
 
