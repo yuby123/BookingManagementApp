@@ -13,7 +13,7 @@ namespace API.Controller;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "user, manager")]
+[Authorize]
 public class EmployeeController : ControllerBase
 {
     // Deklarasi variabel untuk repository employee

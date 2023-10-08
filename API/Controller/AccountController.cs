@@ -15,8 +15,8 @@ using Microsoft.AspNetCore.Authorization;
 namespace API.Controllers;
 
 [ApiController]
-[Route("server/[controller]")]
-[Authorize(Roles = "user, manager")]
+[Route("API/[controller]")]
+[Authorize]
 public class AccountController : ControllerBase
 {
     // Deklarasi variabel untuk repository dan handler
@@ -46,6 +46,7 @@ public class AccountController : ControllerBase
 
     // Endpoint untuk fitur lupa password
     [HttpPut("ForgetPassword")]
+    [AllowAnonymous]
     public IActionResult ForgetPassword(string email)
     {
         // Mendapatkan semua data employee dan akun
@@ -93,6 +94,7 @@ public class AccountController : ControllerBase
 
     // Endpoint untuk mengubah password
     [HttpPut("ChangePassword")]
+    
     public IActionResult ChangePassword(ChangePasswordDto changePasswordDto)
     {
         try
@@ -162,6 +164,7 @@ public class AccountController : ControllerBase
 
     // Endpoint untuk registrasi akun baru
     [HttpPost("Register")]
+    [AllowAnonymous]
     public IActionResult Register(RegistrationDto registrationDto)
     {
         // Memulai transaksi dengan TransactionScope
@@ -239,10 +242,10 @@ public class AccountController : ControllerBase
         try
         {
             // Mengambil semua data employee dan akun
-            var allEmployees = _employeeRepository.GetEmail(loginDto.Email);
+            var employees = _employeeRepository.GetEmail(loginDto.Email);
 
             // Verifikasi apakah ada data untuk employee dan akun
-            if (allEmployees is null)
+            if (employees is null)
             {
                 return NotFound(new ResponseErrorHandler
                 {
@@ -252,7 +255,7 @@ public class AccountController : ControllerBase
                 });
             }
 
-            var account = _accountRepository.GetByGuid(allEmployees.Guid);
+            var account = _accountRepository.GetByGuid(employees.Guid);
             if (!HashingHandler.VerifyPassword(loginDto.Password, account!.Password))
             {
                 return BadRequest(new ResponseErrorHandler
@@ -264,8 +267,8 @@ public class AccountController : ControllerBase
             }
 
             var claims = new List<Claim>();
-            claims.Add(new Claim("Email", allEmployees.Email));
-            claims.Add(new Claim("FullName", string.Concat(allEmployees.FirstName + " " + allEmployees.LastName)));
+            claims.Add(new Claim("Email", employees.Email));
+            claims.Add(new Claim("FullName", string.Concat(employees.FirstName + " " + employees.LastName)));
 
             var getRoleName = from ar in _accountRoleRepository.GetAll()
                               join r in _roleRepository.GetAll() on ar.RoleGuid equals r.Guid
@@ -299,6 +302,7 @@ public class AccountController : ControllerBase
 
 
     [HttpGet]
+    [Authorize(Roles = "admin, superAdmin")]
     public IActionResult GetAll()
     {
         // Mengambil semua account dari repository
@@ -321,6 +325,7 @@ public class AccountController : ControllerBase
     }
 
     [HttpGet("{guid}")] //digunakan untuk mendapatkan data Account berdasarkan GUID yang diberikan sebagai parameter.
+    [Authorize(Roles = "admin, superAdmin")]
     public IActionResult GetByGuid(Guid guid)  //Method ini digunakan untuk mendapatkan data Account berdasarkan GUID.
     {
         // Mengambil account berdasarkan GUID dari repository
@@ -373,6 +378,7 @@ public class AccountController : ControllerBase
     // HTTP PUT endpoint untuk memperbarui data Account.
     [HttpPut] //menangani request update ke endpoint /Account
               //parameter berupa objek menggunakan format DTO explicit agar crete data disesuaikan dengan format DTO
+  
     public IActionResult Update(AccountDto accountDto)
     {
      
@@ -418,6 +424,7 @@ public class AccountController : ControllerBase
     }
 
     [HttpDelete("{guid}")] //digunakan untuk menghapus data Account berdasarkan GUID.
+    [Authorize(Roles = "admin, superAdmin")]
     public IActionResult Delete(Guid guid)
     {
         try

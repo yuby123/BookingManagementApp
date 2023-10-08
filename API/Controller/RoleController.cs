@@ -8,7 +8,7 @@ using System.Net;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "admin")]
+[Authorize(Roles = "superAdmin")]
 public class RoleController : ControllerBase
 {
     // Deklarasi variabel untuk repository role

@@ -2,11 +2,13 @@
 using API.DTOs.Educations;
 using API.Models;
 using API.Utilities.Handler;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Net;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class EducationController : ControllerBase
 {
     // Deklarasi variabel untuk repository education

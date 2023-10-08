@@ -2,11 +2,14 @@
 using API.DTOs.AccountRoles;
 using API.Models;   
 using API.Utilities.Handler;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Net;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Roles = "superAdmin")]
+
 public class AccountRoleController : ControllerBase
 {
     // Deklarasi variabel untuk repository accountRole
