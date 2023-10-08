@@ -8,7 +8,7 @@ using System.Net;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "user")]
+[Authorize]
 public class UniversityController : ControllerBase
 {
     // Deklarasi variabel untuk repository university

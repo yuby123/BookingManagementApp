@@ -152,7 +152,7 @@ public class BookingController : ControllerBase
                 // Jika ada booking untuk room tersebut
                 if (roomBookings.Any())
                 {
-                    // Menghitung durasi total peminjaman
+                    // Menghitung durasi total booking
                     var totalBookingLengthInHours = 0;
 
                     // Mengiterasi setiap booking

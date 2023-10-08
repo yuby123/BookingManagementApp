@@ -35,7 +35,7 @@ public class RoomController : ControllerBase
         var allBooking = _bookingRepository.GetAll();
         // Mengambil semua data ruangan
         var allRoom = _roomRepository.GetAll();
-        // Mengambil semua data karyawan
+        // Mengambil semua data employee
         var allEmployees = _employeeRepository.GetAll();
 
         // Mendapatkan tanggal hari ini
@@ -55,15 +55,15 @@ public class RoomController : ControllerBase
         // Mencari ruangan yang digunakan pada hari ini
         var roomsUsedToday = (from b in allBooking
                               join r in allRoom on b.RoomGuid equals r.Guid
-                              join e in allEmployees on b.EmployeeGuid equals e.Guid // Gabungan dengan tabel Karyawan
-                              where b.StartDate.Date <= today && today <= b.EndDate.Date // Syarat tanggal booking
+                              join e in allEmployees on b.EmployeeGuid equals e.Guid 
+                              where b.StartDate.Date <= today && today <= b.EndDate.Date
                               select new RoomUsedDto
                               {
                                   BookingGuid = b.Guid,
                                   Status = b.Status,
                                   RoomName = r.Name,
                                   Floor = r.Floor,
-                                  BookedBy = $"{e.FirstName} {e.LastName}" // Nama lengkap karyawan yang memesan
+                                  BookedBy = $"{e.FirstName} {e.LastName}" // Nama lengkap employee yang memesan
                               }).ToList();
 
         // Jika tidak ada ruangan yang digunakan hari ini
@@ -125,7 +125,6 @@ public class RoomController : ControllerBase
                     Message = "Tidak ada ruangan yang tersedia hari ini"
                 });
             }
-
             // Mengembalikan daftar ruangan yang tersedia
             return Ok(new ResponseOKHandler<IEnumerable<RoomDto>>(availableRooms));
         }
